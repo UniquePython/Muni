@@ -9,8 +9,8 @@ public record RoomMessage(String sender, String room, String text) implements Me
         if (room == null || room.isBlank())
             throw new IllegalArgumentException("room cannot be blank");
 
-        if (text == null || text.isBlank())
-            throw new IllegalArgumentException("text cannot be blank");
+        if (text == null)
+            throw new IllegalArgumentException("text cannot be null");
     }
 
 }
