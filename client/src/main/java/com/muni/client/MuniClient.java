@@ -44,6 +44,10 @@ public final class MuniClient {
                 System.out.print("> ");
                 String text = consoleReader.readLine();
 
+                if (text == null) {
+                    break;
+                }
+
                 RoomMessage message = new RoomMessage(username, room, text);
 
                 MessageCodec.write(out, message);
