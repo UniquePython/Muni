@@ -107,10 +107,7 @@ public final class LoginWindow extends JFrame {
                     switch (result) {
                         case HandshakeResult.Success success -> {
                             dispose();
-
-                            System.out.println("Connected as: " + success.username());
-
-                            // TODO: construct and show the main chat window
+                            new ChatWindow(success).setVisible(true);
                         }
 
                         case HandshakeResult.Failure failure -> {
