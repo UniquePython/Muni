@@ -22,10 +22,9 @@ public final class MessageCodec {
                 out.writeByte(MessageType.REJECTED.tag());
                 StringCodec.write(out, r.reason());
             }
-            case RoomMessage m -> {
+            case OutgoingRoomMessage m -> {
                 out.writeByte(MessageType.ROOM_MESSAGE.tag());
                 StringCodec.write(out, m.room());
-                StringCodec.write(out, m.sender());
                 StringCodec.write(out, m.text());
             }
         }
@@ -51,10 +50,9 @@ public final class MessageCodec {
 
             case ROOM_MESSAGE -> {
                 String room = StringCodec.read(in);
-                String sender = StringCodec.read(in);
                 String text = StringCodec.read(in);
 
-                yield new RoomMessage(sender, room, text);
+                yield new OutgoingRoomMessage(room, text);
             }
         };
     }

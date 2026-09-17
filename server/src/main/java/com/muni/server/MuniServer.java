@@ -4,7 +4,7 @@ import com.muni.protocol.Hello;
 import com.muni.protocol.Message;
 import com.muni.protocol.MessageCodec;
 import com.muni.protocol.Rejected;
-import com.muni.protocol.RoomMessage;
+import com.muni.protocol.OutgoingRoomMessage;
 import com.muni.protocol.Welcome;
 
 import java.io.DataInputStream;
@@ -60,19 +60,13 @@ public final class MuniServer {
             while (true) {
                 Message message = MessageCodec.read(in);
 
-                if (!(message instanceof RoomMessage roomMessage)) {
+                if (!(message instanceof OutgoingRoomMessage roomMessage)) {
                     MessageCodec.write(out, new Rejected("invalid message; expected ROOM_MESSAGE"));
                     out.flush();
                     return;
                 }
 
-                if (!username.equals(roomMessage.sender())) {
-                    MessageCodec.write(out, new Rejected("sender does not match username"));
-                    out.flush();
-                    return;
-                }
-
-                System.out.println("[" + roomMessage.room() + "] " + roomMessage.sender() + ": " + roomMessage.text());
+                System.out.println("[" + roomMessage.room() + "] " + username + ": " + roomMessage.text());
             }
 
         } catch (EOFException e) {

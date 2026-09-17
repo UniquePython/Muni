@@ -3,7 +3,7 @@ package com.muni.client;
 import com.muni.protocol.Hello;
 import com.muni.protocol.Message;
 import com.muni.protocol.MessageCodec;
-import com.muni.protocol.RoomMessage;
+import com.muni.protocol.OutgoingRoomMessage;
 import com.muni.protocol.Welcome;
 
 import java.io.BufferedReader;
@@ -48,7 +48,7 @@ public final class MuniClient {
                     break;
                 }
 
-                RoomMessage message = new RoomMessage(username, room, text);
+                OutgoingRoomMessage message = new OutgoingRoomMessage(room, text);
 
                 MessageCodec.write(out, message);
                 out.flush();
