@@ -1,6 +1,7 @@
 package com.muni.server;
 
 import com.muni.protocol.Hello;
+import com.muni.protocol.IncomingRoomMessage;
 import com.muni.protocol.Message;
 import com.muni.protocol.MessageCodec;
 import com.muni.protocol.Rejected;
@@ -72,7 +73,10 @@ public final class MuniServer {
                     return;
                 }
 
-                System.out.println("[" + roomMessage.room() + "] " + username + ": " + roomMessage.text());
+                IncomingRoomMessage toDeliver = new IncomingRoomMessage(roomMessage.room(), username,
+                        roomMessage.text());
+                System.out.println("Broadcasting to [" + toDeliver.room() + "] " + toDeliver.sender());
+                broadcast(toDeliver);
             }
 
         } catch (EOFException e) {
@@ -114,5 +118,15 @@ public final class MuniServer {
         out.flush();
 
         return session;
+    }
+
+    private void broadcast(IncomingRoomMessage message) {
+        for (ClientSession recipient : sessions.values()) {
+            try {
+                recipient.send(message);
+            } catch (IOException e) {
+                System.err.println("Failed to send message to " + recipient.username() + ": " + e.getMessage());
+            }
+        }
     }
 }
