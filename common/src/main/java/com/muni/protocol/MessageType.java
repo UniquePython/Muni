@@ -4,7 +4,8 @@ public enum MessageType {
     HELLO(0),
     WELCOME(1),
     REJECTED(2),
-    ROOM_MESSAGE(3);
+    OUTGOING_ROOM_MESSAGE(3),
+    INCOMING_ROOM_MESSAGE(4);
 
     private final int tag;
 
