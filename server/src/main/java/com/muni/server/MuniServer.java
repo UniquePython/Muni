@@ -16,12 +16,14 @@ import java.net.Socket;
 import java.net.SocketAddress;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class MuniServer {
 
     private static final int PORT = 6969;
 
     private final ExecutorService clientPool = Executors.newCachedThreadPool();
+    private final ConcurrentHashMap<String, ClientSession> sessions = new ConcurrentHashMap<>();
 
     public static void main(String[] args) {
         new MuniServer().run();
@@ -46,16 +48,20 @@ public final class MuniServer {
 
     private void handleClient(Socket clientSocket) {
         SocketAddress address = clientSocket.getRemoteSocketAddress();
+        ClientSession session = null;
 
         try (
                 clientSocket;
                 DataInputStream in = new DataInputStream(clientSocket.getInputStream());
                 DataOutputStream out = new DataOutputStream(clientSocket.getOutputStream())) {
-            String username = performHandshake(in, out, address);
 
-            if (username == null) {
+            session = performHandshake(in, out, address);
+
+            if (session == null) {
                 return;
             }
+
+            String username = session.username();
 
             while (true) {
                 Message message = MessageCodec.read(in);
@@ -74,13 +80,16 @@ public final class MuniServer {
 
         } catch (IOException e) {
             System.err.println("Client " + address + " error: " + e.getMessage());
+
+        } finally {
+            if (session != null) {
+                sessions.remove(session.username(), session);
+            }
         }
     }
 
-    private String performHandshake(
-            DataInputStream in,
-            DataOutputStream out,
-            SocketAddress address) throws IOException {
+    private ClientSession performHandshake(DataInputStream in, DataOutputStream out, SocketAddress address)
+            throws IOException {
         Message message = MessageCodec.read(in);
 
         if (!(message instanceof Hello hello)) {
@@ -91,11 +100,19 @@ public final class MuniServer {
 
         String username = hello.username();
 
+        ClientSession session = new ClientSession(username, out);
+
+        if (sessions.putIfAbsent(username, session) != null) {
+            MessageCodec.write(out, new Rejected("username already taken"));
+            out.flush();
+            return null;
+        }
+
         System.out.println("Client " + address + " registered as: " + username);
 
         MessageCodec.write(out, new Welcome());
         out.flush();
 
-        return username;
+        return session;
     }
 }
