@@ -1,10 +1,11 @@
 package com.muni.server;
 
+import com.muni.protocol.Hello;
 import com.muni.protocol.Message;
 import com.muni.protocol.MessageCodec;
+import com.muni.protocol.Rejected;
 import com.muni.protocol.RoomMessage;
 import com.muni.protocol.Welcome;
-import com.muni.protocol.Hello;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -13,49 +14,94 @@ import java.io.IOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketAddress;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public final class MuniServer {
 
-    public static void main(String[] args) throws IOException {
-        int port = 6969; // arbitrary choice for now
+    private static final int PORT = 6969;
 
-        try (ServerSocket serverSocket = new ServerSocket(port)) {
-            System.out.println("Server listening on port " + port);
+    private final ExecutorService clientPool = Executors.newCachedThreadPool();
 
-            Socket clientSocket = serverSocket.accept();
-            SocketAddress clientSocketAddress = clientSocket.getRemoteSocketAddress();
-            System.out.println("Client connected: " + clientSocketAddress);
+    public static void main(String[] args) {
+        new MuniServer().run();
+    }
 
-            try (DataInputStream in = new DataInputStream(clientSocket.getInputStream());
-                    DataOutputStream out = new DataOutputStream(clientSocket.getOutputStream())) {
+    private void run() {
+        try (ServerSocket serverSocket = new ServerSocket(PORT)) {
+            System.out.println("Server listening on port " + PORT);
 
-                Message firstMessage = MessageCodec.read(in);
-                if (firstMessage instanceof Hello hello) {
-                    System.out.println("Username: " + hello.username());
-                    MessageCodec.write(out, new Welcome());
-                } else {
-                    throw new IOException("Expected Hello message");
-                }
-
-                try {
-                    while (true) {
-                        Message message = MessageCodec.read(in);
-
-                        System.out.println("Received: " + message);
-
-                        if (message instanceof RoomMessage roomMessage) {
-                            System.out.println(
-                                    "[" + roomMessage.room() + "] " + roomMessage.sender() + ": " + roomMessage.text());
-
-                            MessageCodec.write(out, roomMessage);
-                            out.flush();
-                        }
-                    }
-                } catch (EOFException e) {
-                    System.out.println("Client " + clientSocketAddress + " disconnected");
-                }
-
+            while (true) {
+                Socket clientSocket = serverSocket.accept();
+                System.out.println("Client connected: " + clientSocket.getRemoteSocketAddress());
+                clientPool.submit(() -> handleClient(clientSocket));
             }
+
+        } catch (IOException e) {
+            System.err.println("Server error: " + e.getMessage());
+        } finally {
+            clientPool.shutdown();
         }
+    }
+
+    private void handleClient(Socket clientSocket) {
+        SocketAddress address = clientSocket.getRemoteSocketAddress();
+
+        try (
+                clientSocket;
+                DataInputStream in = new DataInputStream(clientSocket.getInputStream());
+                DataOutputStream out = new DataOutputStream(clientSocket.getOutputStream())) {
+            String username = performHandshake(in, out, address);
+
+            if (username == null) {
+                return;
+            }
+
+            while (true) {
+                Message message = MessageCodec.read(in);
+
+                if (!(message instanceof RoomMessage roomMessage)) {
+                    MessageCodec.write(out, new Rejected("invalid message; expected ROOM_MESSAGE"));
+                    out.flush();
+                    return;
+                }
+
+                if (!username.equals(roomMessage.sender())) {
+                    MessageCodec.write(out, new Rejected("sender does not match username"));
+                    out.flush();
+                    return;
+                }
+
+                System.out.println("[" + roomMessage.room() + "] " + roomMessage.sender() + ": " + roomMessage.text());
+            }
+
+        } catch (EOFException e) {
+            System.out.println("Client " + address + " disconnected");
+
+        } catch (IOException e) {
+            System.err.println("Client " + address + " error: " + e.getMessage());
+        }
+    }
+
+    private String performHandshake(
+            DataInputStream in,
+            DataOutputStream out,
+            SocketAddress address) throws IOException {
+        Message message = MessageCodec.read(in);
+
+        if (!(message instanceof Hello hello)) {
+            MessageCodec.write(out, new Rejected("invalid handshake; expected HELLO"));
+            out.flush();
+            return null;
+        }
+
+        String username = hello.username();
+
+        System.out.println("Client " + address + " registered as: " + username);
+
+        MessageCodec.write(out, new Welcome());
+        out.flush();
+
+        return username;
     }
 }
